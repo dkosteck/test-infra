@@ -71,6 +71,43 @@ FAIL_FAST=${FAIL_FAST:-$(get_metadata fail_fast "false")}
 echo "$DEBUG, $DEPLOYMENT_TYPE, $RUN_E2E, $REPO, $BRANCH, $NEPHIO_USER, $HOME, $REPO_DIR, $DOCKERHUB_USERNAME, $DOCKERHUB_TOKEN"
 trap get_status ERR
 
+# Validate root permissions for current user and NEPHIO_USER
+if ! sudo -n "true"; then
+    echo ""
+    echo "Passwordless sudo is needed for '$(id -nu)' user."
+    echo "Please fix your /etc/sudoers file. You likely want an"
+    echo "entry like the following one..."
+    echo ""
+    echo "$(id -nu) ALL=(ALL) NOPASSWD: ALL"
+    exit 1
+fi
+
+if ! sudo -u "$NEPHIO_USER" sudo -n "true"; then
+    echo ""
+    echo "Passwordless sudo is needed for '$(sudo -u "$NEPHIO_USER" id -nu)' user."
+    echo "Please fix your /etc/sudoers file. You likely want an"
+    echo "entry like the following one..."
+    echo ""
+    echo "$(sudo -u "$NEPHIO_USER" id -nu) ALL=(ALL) NOPASSWD: ALL"
+    exit 1
+fi
+
+
+if [[ $(id -u) -eq 0 ]]; then
+    echo ""
+    echo "This script needs to be executed without '$(id -nu)' using sudo command."
+    echo ""
+    exit 1
+fi
+
+if [[ $(sudo -u "$NEPHIO_USER" id -u) -eq 0 ]]; then
+    echo ""
+    echo "This script needs to be executed without '$(sudo -u "$NEPHIO_USER" id -nu)' using sudo command."
+    echo ""
+    exit 1
+fi
+
+
 if ! command -v git >/dev/null; then
     source /etc/os-release || source /usr/lib/os-release
     case ${ID,,} in
@@ -92,14 +129,14 @@ if ! command -v git >/dev/null; then
 fi
 
 if [ ! -d "$REPO_DIR" ]; then
-    runuser -u "$NEPHIO_USER" git clone "$REPO" "$REPO_DIR"
+    sudo -u "$NEPHIO_USER" git clone "$REPO" "$REPO_DIR"
     if [[ $BRANCH != "main" ]]; then
         pushd "$REPO_DIR" >/dev/null
-        TAG=$(runuser -u "$NEPHIO_USER" -- git tag --list $BRANCH)
+        TAG=$(sudo -u "$NEPHIO_USER" git tag --list $BRANCH)
         if [[ $TAG == $BRANCH ]]; then
-            runuser -u "$NEPHIO_USER" -- git checkout --detach "$TAG"
+            sudo -u "$NEPHIO_USER" git checkout --detach "$TAG"
         else
-            runuser -u "$NEPHIO_USER" -- git checkout -b "$BRANCH" --track "origin/$BRANCH"
+            sudo -u "$NEPHIO_USER" git checkout -b "$BRANCH" --track "origin/$BRANCH"
         fi
         popd >/dev/null
     fi
@@ -113,11 +150,11 @@ chown "$NEPHIO_USER:$NEPHIO_USER" "$HOME/.bash_aliases"
 int_start=$(date +%s)
 cd "$REPO_DIR/e2e/provision"
 export DEBUG DEPLOYMENT_TYPE DOCKERHUB_USERNAME DOCKERHUB_TOKEN FAIL_FAST
-runuser -u "$NEPHIO_USER" ./install_sandbox.sh
+sudo -u "$NEPHIO_USER" ./install_sandbox.sh
 printf "%s secs\n" "$(($(date +%s) - int_start))"
 
 if [[ $RUN_E2E == "true" ]]; then
-    runuser -u "$NEPHIO_USER" "$REPO_DIR/e2e/e2e.sh"
+    sudo -u "$NEPHIO_USER" "$REPO_DIR/e2e/e2e.sh"
 fi
 
 echo "Done Nephio Execution"
