@@ -95,14 +95,14 @@ fi
 
 if [[ $(id -u) -eq 0 ]]; then
     echo ""
-    echo "This script needs to be executed without '$(id -nu)' using sudo command."
+    echo "This script needs to be executed without using sudo command (user '$(id -nu)')."
     echo ""
     exit 1
 fi
 
 if [[ $(sudo -u "$NEPHIO_USER" id -u) -eq 0 ]]; then
     echo ""
-    echo "This script needs to be executed without '$(sudo -u "$NEPHIO_USER" id -nu)' using sudo command."
+    echo "NEPHIO_USER cannot be root (user '$(sudo -u "$NEPHIO_USER" id -nu)')."
     echo ""
     exit 1
 fi
